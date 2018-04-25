@@ -1,0 +1,31 @@
+.votes_bar .vote_action {
+    float: left;
+    margin-left: 15px;
+}
+
+.votes_bar .vote_action button {
+    border: none;
+    background-color: #fff;
+    background-repeat: no-repeat;
+    text-indent: -9999px;
+    width: 25px;
+    height: 25px;
+    cursor: pointer;
+    outline: none;
+}
+
+.votes_bar .vote_action button.like {
+    background-image: url(like.svg);
+}
+
+.votes_bar .vote_action button.dislike {
+    background-image: url(dislike.svg);
+}
+
+.votes_bar .vote_action button.like.is-active {
+    background-image: url(like-active.svg);
+}
+
+.votes_bar .vote_action button.dislike.is-active {
+    background-image: url(dislike-active.svg);
+}
