@@ -2,7 +2,7 @@ CREATE TABLE `ylab_likes_votes` (
   `ID`           INT        NOT NULL AUTO_INCREMENT,
   `CONTENT_ID`   INT(11)    NOT NULL
   COMMENT 'ID Контента',
-  `CONTENT_TYPE` TINYINT(4) NOT NULL
+  `CONTENT_TYPE` SMALLINT NOT NULL
   COMMENT 'Тип контента (см. Константы орм класса)',
   `USER_ID`      INT(11)    NOT NULL
   COMMENT 'ID пользователя',
