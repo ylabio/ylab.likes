@@ -2,8 +2,18 @@ $(document).ready(function () {
     $('.vote_action').on('click', '.js-like-action', function (event) {
         event.preventDefault();
         let $sEid = $(this).data('eid');
+        setVote($sEid, 'setLike');
+    });
+
+    $('.vote_action').on('click', '.js-dislike-action', function (event) {
+        event.preventDefault();
+        let $sEid = $(this).data('eid');
+        setVote($sEid, 'setDislike');
+    });
+
+    function setVote($sEid, voteAction) {
         BX.ajax.runComponentAction('ylab:likes',
-            'setLike', {
+            voteAction, {
                 mode: 'class',
                 data: {
                     sSignedParameters: BX.Ylab.Components.SignedParameters[$sEid]
@@ -18,28 +28,7 @@ $(document).ready(function () {
                     }
                 }
             });
-    });
-
-    $('.vote_action').on('click', '.js-dislike-action', function (event) {
-        event.preventDefault();
-        let $sEid = $(this).data('eid');
-        BX.ajax.runComponentAction('ylab:likes',
-            'setDislike', {
-                mode: 'class',
-                data: {
-                    sSignedParameters: BX.Ylab.Components.SignedParameters[$sEid]
-                },
-            })
-            .then(function (response) {
-                if (response.status === 'success') {
-                    if (response.data === false){
-                        alert('Для голосования необходимо авторизироваться');
-                    } else {
-                        getContentStat(BX.Ylab.Components.SignedParameters[$sEid]);
-                    }
-                }
-            });
-    });
+    }
 
     function getContentStat(eID) {
         BX.ajax.runComponentAction('ylab:likes',

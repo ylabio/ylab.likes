@@ -7,6 +7,7 @@ use Bitrix\Main\Localization\Loc;
 use Ylab\Likes\YlabLikesTable;
 use Bitrix\Main\Engine\Contract\Controllerable;
 use Bitrix\Main\Entity;
+use Bitrix\Main\Engine\ActionFilter;
 
 /** @var \CUser $USER */
 global $USER;
@@ -19,9 +20,6 @@ Loc::loadMessages(__FILE__);
  */
 class ylab_likes_component extends CBitrixComponent implements Controllerable
 {
-    const VoteDislike = -1;
-    const VoteLike = 1;
-
     /**
      * @var array
      */
@@ -34,13 +32,28 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
     {
         return [
             'setLike' => [
-                'prefilters' => [],
+                'prefilters' => [
+                    new ActionFilter\HttpMethod([
+                        ActionFilter\HttpMethod::METHOD_POST
+                    ]),
+                    new ActionFilter\Csrf()
+                ],
             ],
             'setDislike' => [
-                'prefilters' => [],
+                'prefilters' => [
+                    new ActionFilter\HttpMethod([
+                        ActionFilter\HttpMethod::METHOD_POST
+                    ]),
+                    new ActionFilter\Csrf()
+                ],
             ],
             'getContentStat' => [
-                'prefilters' => [],
+                'prefilters' => [
+                    new ActionFilter\HttpMethod([
+                        ActionFilter\HttpMethod::METHOD_POST
+                    ]),
+                    new ActionFilter\Csrf()
+                ],
             ],
         ];
     }
@@ -69,7 +82,7 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
 
     /**
      * @param $sSignedParameters
-     * @return false
+     * @return \Bitrix\Main\ORM\Data\AddResult|\Bitrix\Main\ORM\Data\DeleteResult|\Bitrix\Main\ORM\Data\UpdateResult|false
      * @throws \Bitrix\Main\ArgumentException
      * @throws \Bitrix\Main\ArgumentTypeException
      * @throws \Bitrix\Main\LoaderException
@@ -82,93 +95,101 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
         /** @var \CUser $USER */
         global $USER;
 
-        if(!$USER->IsAuthorized()) return false;
+        if (!$USER->IsAuthorized()) {
+            return false;
+        }
 
         $signer = new ParameterSigner;
         $this->arParams = $signer->unsignParameters($this->__name, $sSignedParameters);
         $this->arParams = $this->onPrepareComponentParams($this->arParams);
 
-        $oResultGet = YlabLikesTable::getList([
-            'filter' => [
-                'CONTENT_ID' => $this->arParams['ELEMENT_ID'],
-                'CONTENT_TYPE' => $this->arParams['ENTITY_ID'],
-                'USER_ID' => $USER->GetID()
-            ],
-            'select' => ['ID', 'VOTE']
-        ]);
-        if ($oResultGet->getSelectedRowsCount() > 0) {
-            $arResultGet = $oResultGet->fetch();
-            if ($arResultGet['VOTE'] == self::VoteLike) {
-                $oResult = YlabLikesTable::delete($arResultGet['ID']);
-            } else {
-                $oResult = YlabLikesTable::update($arResultGet['ID'], ['VOTE' => self::VoteLike]);
-            }
-        } else {
-            $oResult = YlabLikesTable::add([
-                'CONTENT_ID' => $this->arParams['ELEMENT_ID'],
-                'CONTENT_TYPE' => $this->arParams['ENTITY_ID'],
-                'USER_ID' => $USER->GetID(),
-                'VOTE' => self::VoteLike
-            ]);
+        $oResult = $this->setReaction(YlabLikesTable::VoteLike, $USER->GetID());
+        if ($oResult->isSuccess() === true) {
+            global $CACHE_MANAGER;
+            $CACHE_MANAGER->ClearByTag("YLab.Likes." . $this->arParams['ELEMENT_ID'] . "." . $this->arParams['ENTITY_ID']);
         }
-
         return $oResult;
-
     }
 
     /**
      * @param $sSignedParameters
-     * @return mixed
+     * @return \Bitrix\Main\ORM\Data\AddResult|\Bitrix\Main\ORM\Data\DeleteResult|\Bitrix\Main\ORM\Data\UpdateResult|false
+     * @throws \Bitrix\Main\ArgumentException
      * @throws \Bitrix\Main\ArgumentTypeException
      * @throws \Bitrix\Main\LoaderException
+     * @throws \Bitrix\Main\ObjectPropertyException
      * @throws \Bitrix\Main\Security\Sign\BadSignatureException
+     * @throws \Bitrix\Main\SystemException
      */
     public function setDislikeAction($sSignedParameters)
     {
         /** @var \CUser $USER */
         global $USER;
 
-        if(!$USER->IsAuthorized()) return false;
+        if (!$USER->IsAuthorized()) {
+            return false;
+        }
 
         $signer = new ParameterSigner;
         $this->arParams = $signer->unsignParameters($this->__name, $sSignedParameters);
         $this->arParams = $this->onPrepareComponentParams($this->arParams);
 
-        $oResultGet = YlabLikesTable::getList([
-            'filter' => [
-                'CONTENT_ID' => $this->arParams['ELEMENT_ID'],
-                'CONTENT_TYPE' => $this->arParams['ENTITY_ID'],
-                'USER_ID' => $USER->GetID()
-            ],
-            'select' => ['ID', 'VOTE']
-        ]);
-        if ($oResultGet->getSelectedRowsCount() > 0) {
-            $arResultGet = $oResultGet->fetch();
-            if ($arResultGet['VOTE'] == self::VoteDislike) {
-                $oResult = YlabLikesTable::delete($arResultGet['ID']);
-            } else {
-                $oResult = YlabLikesTable::update($arResultGet['ID'], ['VOTE' => self::VoteDislike]);
-            }
-        } else {
-            $oResult = YlabLikesTable::add([
-                'CONTENT_ID' => $this->arParams['ELEMENT_ID'],
-                'CONTENT_TYPE' => $this->arParams['ENTITY_ID'],
-                'USER_ID' => $USER->GetID(),
-                'VOTE' => self::VoteDislike
-            ]);
+        $oResult = $this->setReaction(YlabLikesTable::VoteDislike, $USER->GetID());
+        if ($oResult->isSuccess() === true) {
+            global $CACHE_MANAGER;
+            $CACHE_MANAGER->ClearByTag("YLab.Likes." . $this->arParams['ELEMENT_ID'] . "." . $this->arParams['ENTITY_ID']);
         }
-
         return $oResult;
 
     }
 
     /**
+     * @param $vote
+     * @param $userID
+     * @return \Bitrix\Main\ORM\Data\AddResult|\Bitrix\Main\ORM\Data\DeleteResult|\Bitrix\Main\ORM\Data\UpdateResult
+     * @throws \Bitrix\Main\ArgumentException
+     * @throws \Bitrix\Main\ObjectPropertyException
+     * @throws \Bitrix\Main\SystemException
+     */
+    public function setReaction($vote, $userID)
+    {
+
+        $oResultGet = YlabLikesTable::getList([
+            'filter' => [
+                'CONTENT_ID' => $this->arParams['ELEMENT_ID'],
+                'CONTENT_TYPE' => $this->arParams['ENTITY_ID'],
+                'USER_ID' => $userID
+            ],
+            'select' => ['ID', 'VOTE']
+        ]);
+        if ($oResultGet->getSelectedRowsCount() > 0) {
+            $arResultGet = $oResultGet->fetch();
+            if ($arResultGet['VOTE'] == $vote) {
+                $oResult = YlabLikesTable::delete($arResultGet['ID']);
+            } else {
+                $oResult = YlabLikesTable::update($arResultGet['ID'], ['VOTE' => $vote]);
+            }
+        } else {
+            $oResult = YlabLikesTable::add([
+                'CONTENT_ID' => $this->arParams['ELEMENT_ID'],
+                'CONTENT_TYPE' => $this->arParams['ENTITY_ID'],
+                'USER_ID' => $userID,
+                'VOTE' => $vote
+            ]);
+        }
+
+        return $oResult;
+    }
+
+    /**
      * @param $sSignedParameters
-     * @return mixed
+     * @return array
      * @throws \Bitrix\Main\ArgumentException
      * @throws \Bitrix\Main\ArgumentTypeException
      * @throws \Bitrix\Main\LoaderException
+     * @throws \Bitrix\Main\ObjectPropertyException
      * @throws \Bitrix\Main\Security\Sign\BadSignatureException
+     * @throws \Bitrix\Main\SystemException
      */
     public function getContentStatAction($sSignedParameters)
     {
@@ -179,9 +200,14 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
         $this->arParams = $signer->unsignParameters($this->__name, $sSignedParameters);
         $this->arParams = $this->onPrepareComponentParams($this->arParams);
 
-        $arContentStat = $this->getContentStat($this->arParams['ELEMENT_ID'], $this->arParams['ENTITY_ID'], $USER->GetID());
+        $arContentStat = $this->getContentStat($this->arParams['ELEMENT_ID'], $this->arParams['ENTITY_ID'],
+            $USER->GetID());
 
-        return ['STAT' =>$arContentStat, 'CONTENT_ID' => $this->arParams['ELEMENT_ID'], 'CONTENT_TYPE' => $this->arParams['ENTITY_ID']];
+        return [
+            'STAT' => $arContentStat,
+            'CONTENT_ID' => $this->arParams['ELEMENT_ID'],
+            'CONTENT_TYPE' => $this->arParams['ENTITY_ID']
+        ];
     }
 
     /**
@@ -197,9 +223,9 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
     {
         $arRuntime = [
             new Entity\ExpressionField('COUNT_LIKE',
-                'COUNT(IF(`ylab_likes_ylab_likes`.`VOTE`=' . self::VoteLike . ', `ylab_likes_ylab_likes`.`VOTE`, NULL))'),
+                'COUNT(IF(`ylab_likes_ylab_likes`.`VOTE`=' . YlabLikesTable::VoteLike . ', `ylab_likes_ylab_likes`.`VOTE`, NULL))'),
             new Entity\ExpressionField('COUNT_DISLIKE',
-                'COUNT(IF(`ylab_likes_ylab_likes`.`VOTE`=' . self::VoteDislike . ', `ylab_likes_ylab_likes`.`VOTE`, NULL))')
+                'COUNT(IF(`ylab_likes_ylab_likes`.`VOTE`=' . YlabLikesTable::VoteDislike . ', `ylab_likes_ylab_likes`.`VOTE`, NULL))')
         ];
         $arSelect = ['CONTENT_ID', 'CONTENT_TYPE', 'COUNT_LIKE', 'COUNT_DISLIKE'];
 
@@ -225,10 +251,10 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
 
         if ($userId) {
             foreach ($arContentStat as &$item) {
-                if ($item['IS_VOTED'] == self::VoteLike) {
+                if ($item['IS_VOTED'] == YlabLikesTable::VoteLike) {
                     $item['IS_VOTED'] = 'LIKE';
                 }
-                if ($item['IS_VOTED'] == self::VoteDislike) {
+                if ($item['IS_VOTED'] == YlabLikesTable::VoteDislike) {
                     $item['IS_VOTED'] = 'DISLIKE';
                 }
             }
@@ -239,34 +265,34 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
     }
 
     /**
-     * @return mixed|void
+     * @return mixed|void|null
      * @throws \Bitrix\Main\ArgumentException
+     * @throws \Bitrix\Main\ObjectPropertyException
+     * @throws \Bitrix\Main\SystemException
      */
     public function executeComponent()
     {
         /** @var \CUser $USER */
-        global $USER;
+        global $USER, $CACHE_MANAGER;
+
 
         if (!empty($this->errors)) {
             foreach ($this->errors as $error) {
                 ShowError($error);
             }
-
             return;
         }
-
-        if (!$USER->IsAuthorized()) {
-            //Голосовать могут только авторизованные пользователи
-            /*return;*/
-        }
-
 
         $iUserId = $USER->GetID();
         $iElementId = $this->arParams['ELEMENT_ID'];
         $iEntityId = $this->arParams['ENTITY_ID'];
 
         if ($this->StartResultCache()) {
+            $relativePath = $CACHE_MANAGER->getCompCachePath($this->getRelativePath());
+            $CACHE_MANAGER->StartTagCache($relativePath);
+            $CACHE_MANAGER->RegisterTag("YLab.Likes." . $iElementId . "." . $iEntityId);
             $this->arResult['STAT'] = $this->getContentStat($iElementId, $iEntityId, $iUserId);
+            $CACHE_MANAGER->EndTagCache();
         }
 
         $this->includeComponentTemplate();
@@ -283,7 +309,8 @@ class ylab_likes_component extends CBitrixComponent implements Controllerable
             'ELEMENT_ID',
             'ENTITY_ID',
             'CACHE_TYPE',
-            'CACHE_TIME'
+            'CACHE_TIME',
+            'SHOW_DISLIKE'
         ];
     }
 }
